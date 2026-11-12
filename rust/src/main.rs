@@ -72,22 +72,23 @@ struct Row {
 
 fn canonical_uci(m: shakmaty::Move, black: bool) -> String {
     let mut u = UciMove::from_standard(m);
-    if black {
-        if let UciMove::Normal {
+    if black
+        && let UciMove::Normal {
             from,
             to,
             promotion,
         } = u
-        {
-            u = UciMove::Normal {
-                from: from.flip_vertical(),
-                to: to.flip_vertical(),
-                promotion,
-            };
-        }
+    {
+        u = UciMove::Normal {
+            from: from.flip_vertical(),
+            to: to.flip_vertical(),
+            promotion,
+        };
     }
     u.to_string()
 }
+// PositionError owns the board; retain it without heap allocation on validity checks.
+#[allow(clippy::result_large_err)]
 fn encode(line: &str, ids: &HashMap<String, u16>, masks: bool) -> Result<Row> {
     let r: Record = serde_json::from_str(line)?;
     // max_by_key uses the LAST tie; use strictly greater updates instead.
@@ -122,23 +123,23 @@ fn encode(line: &str, ids: &HashMap<String, u16>, masks: bool) -> Result<Row> {
     if checkers.count() > 2 {
         bail!("invalid orthodox board");
     }
-    if let Some(king) = pos.board().king_of(pos.turn()) {
-        if !checkers.is_empty() {
-            if let Some(ep) = setup.ep_square {
-                let pushed_to = Square::new((u32::from(ep)) ^ 8);
-                let pushed_from = Square::new((u32::from(ep)) ^ 24);
-                let occupied = pos.board().occupied().without(pushed_to).with(pushed_from);
-                if checkers.count() > 1
-                    || (checkers.first() != Some(pushed_to)
-                        && !pos.king_attackers(king, !pos.turn(), occupied).is_empty())
-                {
-                    bail!("invalid orthodox board");
-                }
-            } else if checkers.count() == 2
-                && attacks::aligned(checkers.first().unwrap(), king, checkers.last().unwrap())
+    if let Some(king) = pos.board().king_of(pos.turn())
+        && !checkers.is_empty()
+    {
+        if let Some(ep) = setup.ep_square {
+            let pushed_to = Square::new((u32::from(ep)) ^ 8);
+            let pushed_from = Square::new((u32::from(ep)) ^ 24);
+            let occupied = pos.board().occupied().without(pushed_to).with(pushed_from);
+            if checkers.count() > 1
+                || (checkers.first() != Some(pushed_to)
+                    && !pos.king_attackers(king, !pos.turn(), occupied).is_empty())
             {
                 bail!("invalid orthodox board");
             }
+        } else if checkers.count() == 2
+            && attacks::aligned(checkers.first().unwrap(), king, checkers.last().unwrap())
+        {
+            bail!("invalid orthodox board");
         }
     }
     let uci: UciMove = pv

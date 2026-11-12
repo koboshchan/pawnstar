@@ -38,7 +38,8 @@ performance/source fields are intentionally not byte-identical.
 
 Masks are omitted by default; --no-masks makes that explicit. Use --masks to
 include the exact Python legal mask. Training must reconstruct legal masks from
-tokens using core.decode_board and the same moves.json vocabulary when omitted.
+tokens and the same moves.json vocabulary when omitted. A training-time decoder
+is not included in this preprocessing-only repository.
 The labels are still checked for legality during preprocessing. Input supports
 local .zst, local JSONL, or uncompressed JSONL on stdin (--input -). Download HTTPS
 sources before running. Batches default to 20,000 records; output shards default

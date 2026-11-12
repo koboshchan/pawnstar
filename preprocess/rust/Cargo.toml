@@ -13,6 +13,7 @@ rayon = "1"
 blake2b_simd = "1"
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
+parquet = { version = "=60.1.0", default-features = false, features = ["snap", "zstd", "flate2-zlib-rs", "lz4"] }
 zip = { version = "2", default-features = false }
 
 [profile.release]

@@ -9,3 +9,6 @@ sample*/
 **/target/
 /rust-original*/
 /original-*.jsonl.zst
+
+/hf-parity-*/
+/hf-reconstructed-*.jsonl.zst

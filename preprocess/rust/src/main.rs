@@ -1,3 +1,4 @@
+mod hf;
 use anyhow::{Context, Result, anyhow, bail};
 use clap::Parser;
 use rayon::prelude::*;
@@ -23,6 +24,8 @@ struct Args {
     input: String,
     #[arg(long)]
     output: PathBuf,
+    #[arg(long, default_value = "jsonl", value_parser = ["jsonl", "hf-parquet"])]
+    input_format: String,
     #[arg(long, default_value_t = 0)]
     limit: usize,
     #[arg(long, default_value_t = 10000)]
@@ -358,17 +361,33 @@ fn main() -> Result<()> {
         .num_threads(a.threads)
         .build_global()?;
     fs::create_dir(&a.output).context("output must not already exist")?;
-    let raw: Box<dyn io::Read> = if a.input == "-" {
-        Box::new(io::stdin())
+    let source_files = if a.input_format == "hf-parquet" {
+        if a.revision.len() != 40 || !a.revision.bytes().all(|b| b.is_ascii_hexdigit()) {
+            bail!("hf-parquet requires --revision with the exact 40-character HF commit SHA");
+        }
+        hf::files(Path::new(&a.input))?
     } else {
-        Box::new(File::open(&a.input)?)
+        Vec::new()
     };
-    let input: Box<dyn io::Read> = if a.input.ends_with(".zst") {
-        Box::new(zstd::stream::read::Decoder::new(raw)?)
+    let mut reader: Box<dyn Iterator<Item = Result<String>>> = if a.input_format == "hf-parquet" {
+        Box::new(hf::records(source_files.clone()))
     } else {
-        raw
+        let raw: Box<dyn io::Read> = if a.input == "-" {
+            Box::new(io::stdin())
+        } else {
+            Box::new(File::open(&a.input)?)
+        };
+        let input: Box<dyn io::Read> = if a.input.ends_with(".zst") {
+            Box::new(zstd::stream::read::Decoder::new(raw)?)
+        } else {
+            raw
+        };
+        Box::new(
+            BufReader::with_capacity(4 * 1024 * 1024, input)
+                .lines()
+                .map(|r| r.map_err(Into::into)),
+        )
     };
-    let mut reader = BufReader::with_capacity(4 * 1024 * 1024, input);
     let (mut rows, mut accepted, mut shards) = (0usize, 0usize, 0usize);
     let mut splits = [0usize; 3];
     let mut errors = BTreeMap::<String, usize>::new();
@@ -380,11 +399,10 @@ fn main() -> Result<()> {
             if a.limit != 0 && rows + batch.len() >= a.limit {
                 break;
             }
-            let mut line = String::new();
-            if reader.read_line(&mut line)? == 0 {
-                break;
+            match reader.next() {
+                Some(line) => batch.push(line?),
+                None => break,
             }
-            batch.push(line);
         }
         if batch.is_empty() {
             break;
@@ -421,7 +439,7 @@ fn main() -> Result<()> {
     let manifest = json!({"rows":rows,"accepted":accepted,"rejected":rows-accepted,
         "train":splits[0],"val":splits[1],"test":splits[2],"errors":errors,
         "seconds":seconds,"rows_per_second":rows as f64/seconds,"shards":shards,
-        "source":a.input,"source_revision":a.revision,"selection":"max(depth,knodes,earliest eval); pvs[0]",
+        "source":a.input,"source_revision":a.revision,"input_format":a.input_format,"source_files":source_files,"selection":"max(depth,knodes,earliest eval); pvs[0]",
         "score_pov":"source White; output side to move","token_length":128,"active_tokens":69,
         "vocab_size":1968,"split":"canonical FEN blake2b64 modulo1000: 980/10/10",
         "schema_version":1,"legal_masks":a.masks,"threads":a.threads});

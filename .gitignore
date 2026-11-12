@@ -5,3 +5,7 @@ __pycache__/
 sample*/
 *.log
 *.html
+
+/rust/target/
+/rust-original*/
+/original-*.jsonl.zst

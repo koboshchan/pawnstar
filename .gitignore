@@ -6,6 +6,6 @@ sample*/
 *.log
 *.html
 
-/rust/target/
+**/target/
 /rust-original*/
 /original-*.jsonl.zst

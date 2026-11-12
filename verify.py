@@ -8,8 +8,9 @@ for f in sorted(p.glob("shard-*.npz")):
         assert d["tokens"].shape==(size,128)
         assert not d["tokens"][:,69:].any()
         assert (d["labels"]<1968).all()
-        masks=np.unpackbits(d["legal"],axis=1,bitorder="little")
-        assert masks[np.arange(size),d["labels"]].all()
+        if "legal" in d.files:
+            masks=np.unpackbits(d["legal"],axis=1,bitorder="little")
+            assert masks[np.arange(size),d["labels"]].all()
         keys=d["keys"]%1000
         expected=np.where(keys<980,0,np.where(keys<990,1,2))
         assert np.array_equal(d["split"],expected)

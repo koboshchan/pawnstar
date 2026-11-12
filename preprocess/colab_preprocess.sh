@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Colab cell: !bash /content/chess-transformer/colab_preprocess.sh
+# Colab cell: !bash /content/pawnstar/preprocess/colab_preprocess.sh
 # Copy this repository to /content/chess-transformer first. CPU High-RAM, no GPU.
 set -euo pipefail
 cd "$(dirname "$0")"

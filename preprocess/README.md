@@ -1,6 +1,6 @@
 # Chess policy preprocessing
 
-Run with Python 3 and numpy, python-chess, requests, zstandard. This implementation reads the ORIGINAL Lichess JSONL export, not the flattened Hugging Face parquet. The flattened data lacks an explicit PV index, so it cannot reliably recover pvs[0] by score sorting. Source https://database.lichess.org/lichess_db_eval.jsonl.zst is mutable; download and sha256-pin the export before a reproducible full build.
+Run with Python 3 and numpy, python-chess, requests, zstandard. Python reads the original Lichess JSONL export. Rust supports both JSONL and ordered Hugging Face parquet. The flattened data lacks an explicit PV index: preserve file order, never sort PVs by score. Source https://database.lichess.org/lichess_db_eval.jsonl.zst is mutable; download and sha256-pin the export before a reproducible full build.
 
 Select maximum-depth evaluation, with maximum knodes then first occurrence as deterministic ties. Preserve its first principal variation. Invalid orthodox boards, empty PVs and illegal first moves are rejected, not replaced by weaker evaluations.
 
@@ -22,7 +22,7 @@ Full command, NOT executed
 
 Tests
 
-    PYTHONPATH=. .venv/bin/pytest -q
+    cd preprocess && PYTHONPATH=. ../.venv/bin/pytest -q
 
 ## Rust streaming preprocessor
 
@@ -93,3 +93,72 @@ syncs without deleting any remote files.
 The Rust crate is GPL-3.0-or-later because shakmaty is GPL-3.0-or-later. Lichess
 export data is CC0. No Colab runtime was allocated and no Hugging Face upload
 was performed while implementing this port.
+
+
+## Ordered Hugging Face parquet
+
+From a Colab checkout, with CPU High-RAM selected:
+
+    !git clone https://github.com/koboshchan/pawnstar
+    !bash /content/pawnstar/preprocess/colab_preprocess_hf.sh
+
+The script reuses existing files in `/content/lichess-hf/data/`, downloads only
+missing shards with `hf download` and parallel Xet transfers, then verifies every
+shard's size and SHA256 against the pinned Hub commit. It does not silently
+replace local mismatched files. HF Hub v1+ uses Xet rather than the deprecated
+hf_transfer switch. Validation reads existing files but does not redownload them.
+It requires roughly 70 GB free for the unmasked output after input download.
+Output defaults to `/content/chess-policy-hf-v1`; nothing is uploaded.
+
+Default snapshot: `Lichess/chess-position-evaluations` at
+`8c5285259fdbf3218bf2582de9775dd1378f520b`.
+`CHESS_HF_INPUT`, `CHESS_HF_REVISION`, `CHESS_OUTPUT`, and `CHESS_ROWS` override
+these defaults. A revision override must be a full commit SHA. The manifest
+records `source_revision`, `input_format`, and ordered `source_files`; the Colab
+script also saves `source.json` with authoritative per-file SHA256 checksums.
+The raw Rust CLI requires a revision but trusts the caller's local files; use
+`prepare_hf.py` to verify the bytes before a reproducible full build.
+
+Manual command from `preprocess/` after compiling:
+
+    rust/target/release/chess-preprocess --input /content/lichess-hf --input-format hf-parquet --revision 8c5285259fdbf3218bf2582de9775dd1378f520b --output /content/chess-policy-hf-v1 --vocab moves.json --threads 8 --no-masks
+
+Input accepts a single parquet file, a directory of parquet files, or an HF
+snapshot directory with a `data/` subdirectory. Shards are read in lexicographic
+filename order. Rows belonging to one FEN must be contiguous in that order.
+A FEN can span row groups, batches, and shard files. Only a strictly better
+(depth, knodes) replaces the selected row, so equal evaluations preserve their
+first PV in file order. The producer keeps one selected PV and a bounded queue;
+it never groups the billion-row dataset in RAM. Repeated noncontiguous FENs
+remain separate records, just as repeated JSONL records do. `--limit` counts
+contiguous FEN groups, not flattened PV rows. Malformed parquet aborts rather
+than silently rejecting source data.
+
+### Validation performed
+
+The original 1M-position sample and pinned HF revision have identical FEN order.
+All 1,706,302 shared (depth, knodes) evaluations preserve their complete PV order
+with zero discrepancies. But the source snapshots differ: 5,745 original eval
+keys are absent from HF and 2,889 selected PVs/scores differ. These are snapshot
+changes, not evidence of scrambled PV order. Comparing output against the newer
+original export is intentionally not a parity requirement.
+
+Same-snapshot test used the first 1,000,000 HF positions, 5,189,871 flattened
+rows. They were re-sharded at arbitrary 500,003-row boundaries, including splits
+inside FEN groups. HF parquet and reconstructed JSONL both accepted 994,251
+positions and rejected 5,749 invalid boards. All six unmasked NPY members are
+byte-identical across 100 output shards. Repeating with masks produced identical
+seventh legal-mask members too. ZIP container metadata and manifest timing/source
+fields differ by design. Local unmasked HF mode took 12.45 seconds on the same
+sandbox, not a Colab benchmark. Full-dataset preprocessing has not been run.
+
+Reproduce same-snapshot parity from `preprocess/` (install pyarrow and zstandard):
+
+    python reconstruct_hf_sample.py /content/lichess-hf /content/hf-sample.jsonl.zst --limit 1000000
+    rust/target/release/chess-preprocess --input /content/lichess-hf --input-format hf-parquet --revision 8c5285259fdbf3218bf2582de9775dd1378f520b --output /content/hf-parquet-check --vocab moves.json --limit 1000000
+    rust/target/release/chess-preprocess --input /content/hf-sample.jsonl.zst --output /content/hf-jsonl-check --vocab moves.json
+    python compare_outputs.py /content/hf-jsonl-check /content/hf-parquet-check
+
+The regression suite additionally covers promotion, mover-relative zero and mate,
+(depth,knodes) ties, first-PV preservation, cross-file groups, limits, optional
+masks, illegal selected PV rejection, missing revisions, and corrupt input.

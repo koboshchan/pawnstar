@@ -1,0 +1,4 @@
+torch>=2.6
+numpy>=1.26
+python-chess>=1.999
+huggingface_hub>=2.4

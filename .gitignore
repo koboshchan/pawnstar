@@ -22,3 +22,5 @@ sample*/
 
 /web/public/ort/
 /web/smoke.mjs
+
+/web/live-smoke.mjs

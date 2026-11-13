@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#192d28"><title>Pawnstar · Play in your browser</title></head>
+<body>
+<header><a class="wordmark" href="./">pawnstar<span>✳</span></a><span class="edition">NEURAL CHESS / EXPERIMENT Nº 01</span><span class="local"><i></i> ALL IN YOUR BROWSER</span></header>
+<main>
+<section class="intro"><p class="eyebrow">PAWNSTAR CHESS</p><h1>Your move.<br><em>Our instinct.</em></h1><p>A neural chess companion.<br>Private. Local. All yours.</p><div class="model-label">69 TOKENS <span>×</span> 1,968 POSSIBILITIES</div></section>
+<section class="table" aria-label="Chess game">
+<div class="player"><span class="avatar">✳</span><div><strong>Pawnstar</strong><small id="backend">Model not loaded</small></div><span id="thinking">POLICY / VALUE</span></div>
+<div class="board-wrap"><div class="evaluation" aria-label="White win probability"><div id="eval-fill"></div><span id="eval-label">½</span></div><div id="board" role="group" aria-label="Chessboard"></div></div>
+<div class="player human"><span class="avatar">↗</span><div><strong>You</strong><small id="color-label">Playing white</small></div><button id="flip" title="Flip board">Flip board ⇅</button></div>
+</section>
+<aside><div class="aside-head"><span>THE SESSION</span><span>01</span></div><h2 id="status" aria-live="polite">Make yourself<br>comfortable.</h2>
+<p class="description">Load a network, take a side, and see what it learned.</p>
+<label>YOUR SIDE</label><div class="segmented" role="group" aria-label="Your side"><button class="active" data-color="w" aria-pressed="true">White</button><button data-color="b" aria-pressed="false">Black</button></div><select id="color" hidden><option value="w">White</option><option value="b">Black</option></select>
+<button id="new" class="primary">New game <span>↗</span></button>
+<details open><summary>Network settings</summary><label>MODEL URL<input id="model" value="./models/pawnstar-int8.onnx" spellcheck="false"></label><button id="load">Load network</button><label class="temp">TEMPERATURE <output id="temp-value">0.0</output><input id="temp" type="range" min="0" max="2" step=".1" value="0"></label><small>Zero picks the strongest legal policy move.</small></details>
+<div class="moves-heading">THE MOVES <span id="move-count">0 PLY</span></div><div id="moves" aria-label="Move history"><p class="empty">A blank page. For now.</p></div>
+</aside>
+</main><footer><span>BUILT FROM POSITIONS. NOT RULES OF THUMB.</span><span>PAWNSTAR / LOCAL INFERENCE</span></footer>
+<dialog id="promotion"><form method="dialog"><h2>Choose your piece</h2><div><button value="q">Queen</button><button value="r">Rook</button><button value="b">Bishop</button><button value="n">Knight</button></div></form></dialog>
+<script type="module" src="/src/main.js"></script>
+</body></html>

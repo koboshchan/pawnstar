@@ -1,0 +1,20 @@
+{
+  "name": "pawnstar-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "test": "node --test test/*.test.js",
+    "predev": "node copy-runtime.mjs",
+    "prebuild": "node copy-runtime.mjs"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "onnxruntime-web": "^1.24.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "@playwright/test": "^1.56.0"
+  }
+}

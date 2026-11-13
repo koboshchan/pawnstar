@@ -44,6 +44,9 @@ struct Args {
     /// Include Python-compatible packed legal masks.
     #[arg(long)]
     masks: bool,
+    /// Write 69 tokens and omit position keys and legal masks.
+    #[arg(long, conflicts_with = "masks")]
+    slim: bool,
 }
 #[derive(Deserialize)]
 struct Record {
@@ -261,7 +264,7 @@ fn npy(
     zip.write_all(bytes)?;
     Ok(())
 }
-fn flush(out: &Path, shard: usize, rows: &mut Vec<Row>, masks: bool) -> Result<()> {
+fn flush(out: &Path, shard: usize, rows: &mut Vec<Row>, masks: bool, slim: bool) -> Result<()> {
     if rows.is_empty() {
         return Ok(());
     }
@@ -269,12 +272,16 @@ fn flush(out: &Path, shard: usize, rows: &mut Vec<Row>, masks: bool) -> Result<(
     let tmp = path.with_extension("npz.partial");
     let mut z = ZipWriter::new(File::create(&tmp)?);
     let n = rows.len();
+    let width = if slim { 69 } else { 128 };
     npy(
         &mut z,
         "tokens",
         "|u1",
-        &[n, 128],
-        &rows.iter().flat_map(|r| r.tokens).collect::<Vec<_>>(),
+        &[n, width],
+        &rows
+            .iter()
+            .flat_map(|r| r.tokens[..width].iter().copied())
+            .collect::<Vec<_>>(),
     )?;
     npy(
         &mut z,
@@ -298,16 +305,18 @@ fn flush(out: &Path, shard: usize, rows: &mut Vec<Row>, masks: bool) -> Result<(
                 .collect::<Vec<_>>(),
         )?;
     }
-    npy(
-        &mut z,
-        "keys",
-        "<u8",
-        &[n],
-        &rows
-            .iter()
-            .flat_map(|r| r.key.to_le_bytes())
-            .collect::<Vec<_>>(),
-    )?;
+    if !slim {
+        npy(
+            &mut z,
+            "keys",
+            "<u8",
+            &[n],
+            &rows
+                .iter()
+                .flat_map(|r| r.key.to_le_bytes())
+                .collect::<Vec<_>>(),
+        )?;
+    }
     npy(
         &mut z,
         "cp",
@@ -417,7 +426,7 @@ fn main() -> Result<()> {
                     splits[r.split as usize] += 1;
                     buf.push(r);
                     if buf.len() == a.shard_size {
-                        flush(&a.output, shards, &mut buf, a.masks)?;
+                        flush(&a.output, shards, &mut buf, a.masks, a.slim)?;
                         shards += 1;
                     }
                 }
@@ -432,7 +441,7 @@ fn main() -> Result<()> {
         );
     }
     if !buf.is_empty() {
-        flush(&a.output, shards, &mut buf, a.masks)?;
+        flush(&a.output, shards, &mut buf, a.masks, a.slim)?;
         shards += 1;
     }
     let seconds = start.elapsed().as_secs_f64();
@@ -440,9 +449,9 @@ fn main() -> Result<()> {
         "train":splits[0],"val":splits[1],"test":splits[2],"errors":errors,
         "seconds":seconds,"rows_per_second":rows as f64/seconds,"shards":shards,
         "source":a.input,"source_revision":a.revision,"input_format":a.input_format,"source_files":source_files,"selection":"max(depth,knodes,earliest eval); pvs[0]",
-        "score_pov":"source White; output side to move","token_length":128,"active_tokens":69,
+        "score_pov":"source White; output side to move","token_length":if a.slim {69} else {128},"active_tokens":69,
         "vocab_size":1968,"split":"canonical FEN blake2b64 modulo1000: 980/10/10",
-        "schema_version":1,"legal_masks":a.masks,"threads":a.threads});
+        "schema_version":1,"position_keys":!a.slim,"legal_masks":a.masks,"threads":a.threads});
     fs::write(a.output.join("moves.json"), serde_json::to_vec(&vocab)?)?;
     fs::write(
         a.output.join("manifest.json"),

@@ -162,3 +162,56 @@ Reproduce same-snapshot parity from `preprocess/` (install pyarrow and zstandard
 The regression suite additionally covers promotion, mover-relative zero and mate,
 (depth,knodes) ties, first-PV preservation, cross-file groups, limits, optional
 masks, illegal selected PV rejection, missing revisions, and corrupt input.
+
+## Slim training shards
+
+Rust `--slim` writes only `tokens` uint8 [N,69], `labels` uint16 [N],
+`cp` float32 [N], `mate` int16 [N], and `split` uint8 [N]. No padding,
+`keys`, or `legal` arrays are stored. It works for both JSONL and HF parquet;
+`--slim --masks` is rejected. The existing default format is unchanged.
+
+    rust/target/release/chess-preprocess --input original-1m.jsonl.zst --output slim-output --vocab moves.json --threads 8 --slim
+    python verify.py slim-output
+
+Hashes are still computed to assign exactly the same deterministic splits;
+only their on-disk array is omitted. Active tokens, labels, score bits (including
+NaN and signed zero), and splits are unchanged. Each row uses 78 array bytes
+instead of 145 for the original unmasked format, plus NPZ overhead. Training
+must use the manifest token length rather than assuming 128. Legal masks, if
+needed, must be reconstructed from tokens and the same move vocabulary.
+
+Convert an existing output directory from the repository root:
+
+    python preprocess/slim.py /content/chess-policy-hf-v1 --workers 8
+    python preprocess/verify.py /content/chess-policy-hf-v1
+
+The converter validates the dataset first, then rewrites shards with a bounded
+process pool. Each shard is saved to a same-directory temporary file, validated,
+and atomically replaces its original. It needs space for one extra shard per
+worker, not a second full dataset. It removes both position keys and legal
+masks, so keep a separate backup if those arrays are needed for other work.
+Do not run training, uploads, or another converter against the directory while
+conversion is running. Invalid nonzero padding is rejected rather than lost.
+
+Interrupted conversion can be rerun safely. Already slim shards are skipped;
+mixed 69/128-token directories are accepted. After all shards finish, the
+manifest is atomically updated with `token_length=69`, `active_tokens=69`,
+`position_keys=false`, and `legal_masks=false`. Provenance and split counts
+remain intact. Previously generated SHA256SUMS must be regenerated after
+conversion because shard contents change.
+
+The verifier accepts both token widths and optional `keys`/`legal` arrays.
+For 128-token shards it requires zero padding. When keys exist it checks the
+hash-derived split; without keys it checks split values are 0, 1, or 2, but
+cannot independently prove hash assignment. Legal masks, when present, must
+contain the target label. It also checks shard counts and manifest row totals.
+
+Slim-format regression coverage includes all width/key/mask combinations,
+invalid padding/splits/keys/masks/labels, restartable mixed-format conversion,
+failed-write preservation, bit-exact retained arrays, Rust direct-write parity,
+and conflicting mask flags.
+
+A direct Rust slim run over the original 1,000,000-row regression export accepted
+994,251 positions across 100 shards. Every retained NPY array matched the
+original unmasked Rust output bit-for-bit (tokens compared on the first 69
+columns). The slim dataset verified successfully and occupied 77,679,033 bytes.

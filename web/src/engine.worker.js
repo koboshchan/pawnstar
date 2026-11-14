@@ -23,7 +23,7 @@ async function load(model, id) {
   if (session) await session.release();
   url=bytes;
   try {
-    if (!navigator.gpu) throw new Error('WebGPU unavailable');
+    if (!navigator.gpu || !await navigator.gpu.requestAdapter()) throw new Error('WebGPU unavailable');
     session=await ort.InferenceSession.create(bytes,{executionProviders:['webgpu','wasm']});
     backend='WebGPU + WASM';
   } catch {

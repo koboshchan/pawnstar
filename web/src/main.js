@@ -8,6 +8,16 @@ let orientation='w', human='w', selected=null, pending=false, ready=false, versi
 const worker=new Worker(new URL('./engine.worker.js',import.meta.url),{type:'module'});
 const waiting=new Map();
 worker.onmessage=({data})=>{
+  if(data.progress){
+    const initializing=data.phase==='initializing';
+    const percent=Math.min(100,Math.floor(data.loaded/data.total*100));
+    $('#loading-fill').style.width=percent+'%';
+    $('#loading-track').setAttribute('aria-valuenow',String(percent));
+    $('#loading-label').textContent=initializing?'Initializing…':'Loading model';
+    $('#loading-percent').textContent=initializing?'':percent+'%';
+    $('#backend').textContent=initializing?'Initializing model…':'Downloading model…';
+    return;
+  }
   const cb=waiting.get(data.id); waiting.delete(data.id);
   if(cb) data.error ? cb.reject(new Error(data.error)) : cb.resolve(data);
 };
@@ -96,17 +106,13 @@ async function loadNetwork(){
   pending=true;ready=false;
   $('#backend').textContent='Loading model…';
   $('#backend').setAttribute('aria-live','polite');
-  const began=performance.now();
-  const progress=setInterval(()=>{
-    $('#backend').textContent='Loading model'+'.'.repeat(1+Math.floor((performance.now()-began)/700)%3);
-  },700);
   render();
   try{
     const url=new URL('./models/pawnstar-medium-106575-7a3587112b5c-int8.onnx',location.href);
     const result=await rpc({type:'load',url:url.href});
     ready=true;$('#backend').textContent=result.backend+' · quantized';
   }catch(e){$('#backend').textContent='Network unavailable';$('#status').textContent=e.message;}
-  finally{clearInterval(progress);pending=false;if(ready){render();bot();}}
+  finally{pending=false;$('#model-loading').hidden=true;if(ready){render();bot();}}
 }
 render();
 

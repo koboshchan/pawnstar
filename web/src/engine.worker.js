@@ -1,7 +1,9 @@
 import * as ort from 'onnxruntime-web/webgpu';
 import {encodeFen} from './encoding.js';
-ort.env.wasm.numThreads=1;
-ort.env.wasm.wasmPaths=new URL('../ort/', self.location.href).href;
+ort.env.wasm.numThreads=globalThis.crossOriginIsolated
+  ? Math.min(4,Math.max(1,navigator.hardwareConcurrency || 2)) : 1;
+ort.env.wasm.simd=true;
+ort.env.wasm.wasmPaths=new URL('../ort/1.31.1/', self.location.href).href;
 let session, backend, url;
 async function load(model, id) {
   const started=performance.now();
@@ -37,7 +39,7 @@ async function load(model, id) {
     session=await ort.InferenceSession.create(bytes,{executionProviders:['wasm'],graphOptimizationLevel:'basic'});
     backend='WASM';
   }
-  return {downloadMs,sessionMs:performance.now()-initStarted,cached:!!cached,backend};
+  return {downloadMs,sessionMs:performance.now()-initStarted,cached:!!cached,backend,threads:ort.env.wasm.numThreads,isolated:!!globalThis.crossOriginIsolated};
 }
 self.onmessage=async ({data})=>{
   try {

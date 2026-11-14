@@ -21,7 +21,7 @@ function status(){
   if(game.isInsufficientMaterial())return 'Insufficient material.';
   if(game.isDraw())return 'Draw · fifty-move rule.';
   if(pending)return 'Thinking in tensors…';
-  if(!ready)return 'Load a network to play.';
+  if(!ready)return 'Loading the network…';
   return game.turn()===human ? (game.inCheck()?'You’re in check.':'Your move.') : 'Pawnstar to move.';
 }
 function render(){
@@ -93,19 +93,22 @@ async function bot(){
 $('#flip').onclick=()=>{orientation=orientation==='w'?'b':'w';render();};
 $('#new').onclick=()=>{version++;game.reset();selected=null;human=$('#color').value;orientation=human;$('#eval-fill').style.height='50%';$('#eval-label').textContent='½';render();if(pending){const timer=setInterval(()=>{if(!pending){clearInterval(timer);bot();}},30);}else bot();};
 $('#temp').oninput=()=>$('#temp-value').value=Number($('#temp').value).toFixed(1);
-$('#load').onclick=async()=>{
-  if(pending)return;
-  pending=true;ready=false;$('#load').disabled=true;$('#status').textContent='Loading the network…';
+async function loadNetwork(){
+  pending=true;ready=false;
+  $('#backend').textContent='Loading model…';
+  $('#backend').setAttribute('aria-live','polite');
+  const began=performance.now();
+  const progress=setInterval(()=>{
+    $('#backend').textContent='Loading model'+'.'.repeat(1+Math.floor((performance.now()-began)/700)%3);
+  },700);
+  render();
   try{
-    const url=new URL($('#model').value,location.href);
-    if(!['http:','https:'].includes(url.protocol))throw new Error('Use an HTTP(S) model URL');
+    const url=new URL('./models/pawnstar-medium-106575-7a3587112b5c-int8.onnx',location.href);
     const result=await rpc({type:'load',url:url.href});
     ready=true;$('#backend').textContent=result.backend+' · quantized';
   }catch(e){$('#backend').textContent='Network unavailable';$('#status').textContent=e.message;}
-  finally{pending=false;$('#load').disabled=false;if(ready){render();bot();}}
-};
-const model=new URLSearchParams(location.search).get('model');
-if(model)$('#model').value=model;
+  finally{clearInterval(progress);pending=false;if(ready){render();bot();}}
+}
 render();
 
 document.querySelectorAll('[data-color]').forEach(button=>button.onclick=()=>{
@@ -114,3 +117,5 @@ document.querySelectorAll('[data-color]').forEach(button=>button.onclick=()=>{
     b.classList.toggle('active',b===button);b.setAttribute('aria-pressed',String(b===button));
   });
 });
+
+loadNetwork();

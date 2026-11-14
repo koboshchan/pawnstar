@@ -85,14 +85,13 @@ async function bot(){
     const value=1/(1+Math.exp(-result.value)),white=game.turn()==='w'?value:1-value;
     $('#eval-fill').style.height=(white*100)+'%';$('#eval-label').textContent=Math.round(white*100)+'%';
     $('#backend').textContent=result.backend;
-    const move=choose(legalPolicy(game,vocabulary),result.policy,Number($('#temp').value));
+    const move=choose(legalPolicy(game,vocabulary),result.policy,0.2);
     if(move)game.move({from:move.from,to:move.to,...(move.promotion?{promotion:move.promotion}:{})});
   }catch(e){ready=false;$('#backend').textContent='Inference failed';$('#status').textContent=e.message;}
   finally{pending=false;if(ready)render();}
 }
 $('#flip').onclick=()=>{orientation=orientation==='w'?'b':'w';render();};
 $('#new').onclick=()=>{version++;game.reset();selected=null;human=$('#color').value;orientation=human;$('#eval-fill').style.height='50%';$('#eval-label').textContent='½';render();if(pending){const timer=setInterval(()=>{if(!pending){clearInterval(timer);bot();}},30);}else bot();};
-$('#temp').oninput=()=>$('#temp-value').value=Number($('#temp').value).toFixed(1);
 async function loadNetwork(){
   pending=true;ready=false;
   $('#backend').textContent='Loading model…';

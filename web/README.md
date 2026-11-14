@@ -45,7 +45,7 @@ Deploy the contents of `dist/` to any HTTPS static host. Runtime assets are copi
 
 The live site is https://chess.kjt.lol, served by the desktop's existing oneserver nginx from E:/oneserver/public/chess. Its model is same-origin at the versioned medium URL above, with CORS enabled. No inference backend, Docker restart, or DNS record change was needed. New route, backups and certificate renewal files are in E:/pawnstar-web. The existing proxy was syntax-tested and gracefully reloaded only.
 
-The versioned medium network loads automatically on page open. A subtle loading indicator is shown and moves are disabled until ready. Settings contains only the temperature control, default 0.3. The model URL is fixed in source, not accepted from query parameters.
+The versioned medium network loads automatically on page open. A subtle loading indicator is shown and moves are disabled until ready. Temperature is fixed internally at 0.2, with no model or temperature settings exposed. The model URL is fixed in source, not accepted from query parameters.
 
 ## Interface
 

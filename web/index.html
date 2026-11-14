@@ -14,7 +14,7 @@
 <p class="description">Load a network, take a side, and see what it learned.</p>
 <label>YOUR SIDE</label><div class="segmented" role="group" aria-label="Your side"><button class="active" data-color="w" aria-pressed="true">White</button><button data-color="b" aria-pressed="false">Black</button></div><select id="color" hidden><option value="w">White</option><option value="b">Black</option></select>
 <button id="new" class="primary">New game <span>↗</span></button>
-<details open><summary>Network settings</summary><label>MODEL URL<input id="model" value="./models/pawnstar-medium-106575-7a3587112b5c-int8.onnx" spellcheck="false"></label><button id="load">Load network</button><label class="temp">TEMPERATURE <output id="temp-value">0.0</output><input id="temp" type="range" min="0" max="2" step=".1" value="0"></label><small>Zero picks the strongest legal policy move.</small></details>
+<details open><summary>Network settings</summary><label>MODEL URL<input id="model" value="./models/pawnstar-medium-106575-7a3587112b5c-int8.onnx" spellcheck="false"></label><button id="load">Load network</button><label class="temp">TEMPERATURE <output id="temp-value">0.3</output><input id="temp" type="range" min="0" max="2" step=".1" value="0.3"></label><small>Zero picks the strongest legal policy move.</small></details>
 <div class="moves-heading">THE MOVES <span id="move-count">0 PLY</span></div><div id="moves" aria-label="Move history"><p class="empty">A blank page. For now.</p></div>
 </aside>
 </main><footer><span>BUILT FROM POSITIONS. NOT RULES OF THUMB.</span><span>PAWNSTAR / LOCAL INFERENCE</span></footer>

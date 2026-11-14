@@ -51,7 +51,8 @@ function render(){
       b.draggable=p.color===human&&game.turn()===human&&!pending&&ready&&!game.isGameOver();
       b.ondragstart=e=>{selected=sq;e.dataTransfer.setData('text/plain',sq);};
     }
-    if(col===0||row===7){const c=document.createElement('small');c.className='coordinate';c.textContent=(col===0?rank:'')+(row===7?'abcdefgh'[file]:'');b.append(c);}
+    if(col===0){const c=document.createElement('small');c.className='coordinate coordinate-rank';c.textContent=rank;b.append(c);}
+    if(row===7){const c=document.createElement('small');c.className='coordinate coordinate-file';c.textContent='abcdefgh'[file];b.append(c);}
     b.onclick=()=>click(sq);
     b.ondragover=e=>e.preventDefault();
     b.ondrop=e=>{e.preventDefault();attempt(e.dataTransfer.getData('text/plain'),sq);};
@@ -94,7 +95,7 @@ async function bot(){
     if(version!==old)return;
     const value=1/(1+Math.exp(-result.value)),white=game.turn()==='w'?value:1-value;
     $('#eval-fill').style.height=(white*100)+'%';$('#eval-label').textContent=Math.round(white*100)+'%';
-    $('#backend').textContent=result.backend;
+    $('#backend').textContent=result.backend+' · quantized';
     const move=choose(legalPolicy(game,vocabulary),result.policy,0.2);
     if(move)game.move({from:move.from,to:move.to,...(move.promotion?{promotion:move.promotion}:{})});
   }catch(e){ready=false;$('#backend').textContent='Inference failed';$('#status').textContent=e.message;}
@@ -110,6 +111,7 @@ async function loadNetwork(){
   try{
     const url=new URL('./models/pawnstar-medium-106575-7a3587112b5c-int8.onnx',location.href);
     const result=await rpc({type:'load',url:url.href});
+    console.info('Pawnstar model timing',result.timings);window.pawnstarLoadTimings=result.timings;
     ready=true;$('#backend').textContent=result.backend+' · quantized';
   }catch(e){$('#backend').textContent='Network unavailable';$('#status').textContent=e.message;}
   finally{pending=false;$('#model-loading').hidden=true;if(ready){render();bot();}}

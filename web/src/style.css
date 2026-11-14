@@ -7,3 +7,5 @@ header{height:90px;border:0}.wordmark{font-size:28px;letter-spacing:-1px;font-we
 .segmented{display:flex;padding:3px;border-radius:10px;background:#e9e9ee;margin:8px 0 16px;gap:2px}.segmented button{width:50%;background:transparent;padding:7px;border-radius:7px;font-size:12px;color:#6e6e73}.segmented button.active{background:#fff;color:#1d1d1f;box-shadow:0 2px 5px #0001}select[hidden]{display:none}@media(prefers-color-scheme:dark){.segmented{background:#2c2c2e}.segmented button{color:#98989d}.segmented button.active{background:#636366;color:#fff}}
 
 .model-loading{padding:0 4px 16px}.model-loading[hidden]{display:none}.loading-caption{display:flex;justify-content:space-between;font-size:11px;opacity:.65;margin-bottom:7px;font-variant-numeric:tabular-nums}.loading-track{height:3px;border-radius:999px;background:rgba(128,128,128,.18);overflow:hidden}#loading-fill{height:100%;width:0;background:currentColor;border-radius:inherit;transition:width .15s ease}@media(prefers-reduced-motion:reduce){#loading-fill{transition:none}}
+
+.coordinate-rank{top:3px;bottom:auto;left:4px}.coordinate-file{bottom:3px;right:4px;left:auto}

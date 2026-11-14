@@ -50,3 +50,12 @@ The versioned medium network loads automatically on page open. A subtle loading 
 ## Interface
 
 Click or drag legal moves, choose promotion, flip the board, select your side and start a new game. The move list and terminal states use chess.js. Temperature zero uses legal masked argmax; nonzero samples only legal moves. New game invalidates old in-flight results. Appearance follows the device's light/dark setting.
+
+
+## Loading and caching
+
+The worker persists the versioned model response in Cache API (pawnstar-models-v1), with normal network/HTTP-cache fallback when storage is unavailable. Download/cache-read and session-create durations are logged and exposed as window.pawnstarLoadTimings. Cache keys include the immutable model hash. No private credentials are stored.
+
+Graph optimization is basic on both WebGPU/WASM and WASM fallback. On the desktop Node/WASM benchmark with medium INT8, all/basic/disabled session creation took 535/112/100 ms; first inference took 357/405/388 ms, all with the same unmasked top move. These are local Node measurements, not browser WebGPU measurements. Offline ORT serialization was considered but is not deployed: CPU-provider-specific fused graphs must not be assumed WebGPU-compatible, and the measured native session cost did not justify changing the model format without cross-backend parity.
+
+The desktop nginx chess route serves the hash-versioned medium model with Cache-Control public,max-age=31536000,immutable and gzip off. HTTP/2 is enabled on this route. Mutable small-model URLs retain their prior one-hour policy. No configured rate limit was found. Before the change an external 55,130,763-byte curl transfer took 1.157 seconds (47.6 MB/s), so that route did not reproduce the reported 170-second cold start. Browser before/after results must distinguish download, runtime asset loading, session creation, and inference rather than attribute the entire delay to model transfer.

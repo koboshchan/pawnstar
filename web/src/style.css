@@ -14,3 +14,4 @@ header{height:90px;border:0}.wordmark{font-size:28px;letter-spacing:-1px;font-we
 img.piece{display:block;width:88%;height:88%;object-fit:contain;font-size:initial;pointer-events:none;filter:none;-webkit-text-stroke:0}
 header .local{display:none}
 @media(max-width:650px){header{height:65px}.edition{display:none}}
+img.piece{width:76%;height:76%}.coordinate{z-index:2;pointer-events:none}.coordinate-file{bottom:1px;right:2px;font-size:7px}.coordinate-rank{top:1px;left:2px;font-size:7px}

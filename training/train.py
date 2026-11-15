@@ -30,7 +30,8 @@ def loader(args, split, repeat=False):
                   pin_memory=args.device.startswith("cuda"))
     if args.workers:
         kwargs["prefetch_factor"] = 2
-    return DataLoader(Shards(args.data, split, args.batch_size, args.seed, repeat),
+    return DataLoader(Shards(args.data, split, args.batch_size, args.seed, repeat,
+                      getattr(args, "skip_batches", 0) if split == 0 else 0),
                       generator=torch.Generator().manual_seed(args.seed), **kwargs)
 
 def autocast(args):
@@ -105,6 +106,8 @@ def main():
     p.add_argument("--log-every", type=int, default=20)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--resume")
+    p.add_argument("--init-from", help="Weights-only initialization, fresh optimizer and schedule")
+    p.add_argument("--skip-batches", type=int, default=0, help="Initial deterministic training batches to omit")
     p.add_argument("--compile", action="store_true")
     p.add_argument("--hf-run", help="Dedicated new run name; uploads and keeps last two checkpoints")
     p.add_argument("--wandb", help="Optional W&B project; omitted means disabled")
@@ -118,6 +121,8 @@ def main():
         p.error("--hf-run must be a simple unique run name")
     if args.hf_run and not shutil.which("hf"):
         p.error("hf CLI is required for uploads")
+    if args.skip_batches < 0 or (args.resume and args.init_from):
+        p.error("Invalid skip count or conflicting initialization modes")
     random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.set_float32_matmul_precision("high")
@@ -131,7 +136,19 @@ def main():
                     "weight_decay", "value_weight", "grad_clip", "hf_run"):
             if ckpt["args"][key] != getattr(args, key):
                 p.error(f"Resume requires unchanged --{key.replace('_', '-')}")
-    raw = PolicyValue(Config(**ckpt["config"]) if ckpt else CONFIGS[args.config]).to(args.device)
+    initial = torch.load(args.init_from, map_location="cpu", weights_only=True) if args.init_from else None
+    source = ckpt or initial
+    if ckpt and ckpt["args"].get("skip_batches", 0) != args.skip_batches:
+        p.error("Resume requires unchanged --skip-batches")
+    if initial and args.skip_batches:
+        for key in ("batch_size", "workers", "seed"):
+            if initial["args"][key] != getattr(args, key):
+                p.error(f"Skipping source batches requires unchanged {key}")
+        if initial["consumed"] != args.skip_batches:
+            p.error("Skip count must match source consumed batches")
+    raw = PolicyValue(Config(**source["config"]) if source else CONFIGS[args.config]).to(args.device)
+    if initial:
+        raw.load_state_dict(initial["model"])
     optimizer = torch.optim.AdamW(raw.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     start, consumed = 0, 0
     if ckpt:
@@ -157,6 +174,8 @@ def main():
     history = sorted(out.glob("step-*.pt"))
     print(json.dumps(dict(parameters=sum(x.numel() for x in raw.parameters()),
                           config=asdict(raw.config), start=start)), flush=True)
+    if args.init_from:
+        print(json.dumps(dict(step=0, **evaluate(model, args))), flush=True)
     begin = time.monotonic()
     for step in range(start+1, args.steps+1):
         if step <= args.warmup:

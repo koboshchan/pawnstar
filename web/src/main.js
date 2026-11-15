@@ -2,6 +2,8 @@ import {Chess} from 'chess.js';
 import vocabulary from './moves.json';
 import {legalPolicy,choose} from './encoding.js';
 import './style.css';
+import {saveGame,restoreGame} from './state.js';
+const pieceUrls=import.meta.glob('./pieces/*.svg',{eager:true,query:'?url',import:'default'});
 const $=s=>document.querySelector(s);
 const game=new Chess();
 let orientation='w', human='w', selected=null, pending=false, ready=false, version=0, request=0;
@@ -23,7 +25,6 @@ worker.onmessage=({data})=>{
 };
 worker.onerror=e=>{for(const cb of waiting.values())cb.reject(new Error(e.message));waiting.clear();};
 function rpc(data){return new Promise((resolve,reject)=>{const id=++request;waiting.set(id,{resolve,reject});worker.postMessage({...data,id});});}
-const symbols={wk:'♚',wq:'♛',wr:'♜',wb:'♝',wn:'♞',wp:'♟',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'};
 function status(){
   if(game.isCheckmate()) return game.turn()===human?'Pawnstar wins.':'You win.';
   if(game.isStalemate())return 'Draw by stalemate.';
@@ -35,6 +36,7 @@ function status(){
   return game.turn()===human ? (game.inCheck()?'You’re in check.':'Your move.') : 'Pawnstar to move.';
 }
 function render(){
+  saveGame(localStorage,game,human,orientation);
   const last=game.history({verbose:true}).at(-1);
   const dests=selected?game.moves({square:selected,verbose:true}).map(m=>m.to):[];
   $('#board').replaceChildren();
@@ -47,7 +49,7 @@ function render(){
     if(last&&(sq===last.from||sq===last.to))b.classList.add('last');
     if(dests.includes(sq))b.classList.add('destination');
     if(p){
-      const s=document.createElement('span');s.textContent=symbols[p.color+p.type];s.className='piece '+p.color;b.append(s);
+      const s=document.createElement('img');s.src=pieceUrls['./pieces/'+p.color+p.type.toUpperCase()+'.svg'];s.alt='';s.draggable=false;s.className='piece '+p.color;b.append(s);
       b.draggable=p.color===human&&game.turn()===human&&!pending&&ready&&!game.isGameOver();
       b.ondragstart=e=>{selected=sq;e.dataTransfer.setData('text/plain',sq);};
     }
@@ -116,6 +118,9 @@ async function loadNetwork(){
   }catch(e){$('#backend').textContent='Network unavailable';$('#status').textContent=e.message;}
   finally{pending=false;$('#model-loading').hidden=true;if(ready){render();bot();}}
 }
+({human,orientation}=restoreGame(localStorage,game));
+$('#color').value=human;
+document.querySelectorAll('[data-color]').forEach(b=>{b.classList.toggle('active',b.dataset.color===human);b.setAttribute('aria-pressed',String(b.dataset.color===human));});
 render();
 
 document.querySelectorAll('[data-color]').forEach(button=>button.onclick=()=>{

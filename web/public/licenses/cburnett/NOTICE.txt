@@ -1,0 +1,6 @@
+Cburnett chess artwork by Colin M.L. Burnett, distributed under GPL version 2 or later.
+Selected license for this distribution: GPL version 3 (included).
+Unmodified SVG artwork sourced from lichess-org/lila, public/piece/cburnett
+Revision 4a427ef69b93816aac87e0df59b44f38ea2e49fe
+https://github.com/lichess-org/lila/tree/4a427ef69b93816aac87e0df59b44f38ea2e49fe/public/piece/cburnett
+Artwork is separately licensed from the surrounding application.

@@ -9,7 +9,7 @@ test('stream loading caches bytes, reports progress and uses basic optimization'
     performance,Uint8Array,Response,Number,Error,crossOriginIsolated:true,
     self:{location:{href:'https://chess.kjt.lol/assets/worker.js'},postMessage:x=>events.push(x)},
     navigator:{hardwareConcurrency:8},
-    caches:{open:async()=>({match:async key=>store.get(key)?.clone(),put:async(key,r)=>{store.set(key,new Response(await r.arrayBuffer()));}})},
+    caches:{open:async()=>({match:async key=>store.get(key)?.clone(),put:async(key,r)=>{store.set(key,new Response(await r.arrayBuffer(),{headers:r.headers}));}})},
     fetch:async()=>{fetches++;return new Response(new Uint8Array([1,2,3]),{headers:{'Content-Length':'3'}});},
     ort:{env:{wasm:{}},InferenceSession:{create:async(bytes,o)=>{assert.equal(bytes.length,3);options.push(o);return {release:async()=>{}};}}}
   });

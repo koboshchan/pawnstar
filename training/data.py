@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import IterableDataset, get_worker_info
+from training.legal import legal_masks
 
 def value_targets(cp, mate):
     # Win probability, not [-1,1]. Mate signs map to exact 0/1 endpoints.
@@ -14,13 +15,14 @@ def value_targets(cp, mate):
     return value.astype(np.float32), valid.astype(np.float32)
 
 class Shards(IterableDataset):
-    def __init__(self, root, split, batch_size, seed=42, repeat=False, skip_batches=0):
+    def __init__(self, root, split, batch_size, seed=42, repeat=False, skip_batches=0, masked_policy=False):
         self.paths = sorted(Path(root).rglob("*.npz"))
         if not self.paths:
             raise ValueError(f"No NPZ shards in {root}")
         self.split, self.batch_size = split, batch_size
         self.seed, self.repeat = seed, repeat
         self.skip_batches = skip_batches
+        self.masked_policy = masked_policy
 
     def __iter__(self):
         worker = get_worker_info()
@@ -56,9 +58,14 @@ class Shards(IterableDataset):
                             skip -= 1
                             continue
                         target, valid = value_targets(cp[ix], mate[ix])
-                        yield (torch.from_numpy(tokens[ix, :69].astype(np.int64)),
+                        batch = (torch.from_numpy(tokens[ix, :69].astype(np.int64)),
                                torch.from_numpy(labels[ix].astype(np.int64)),
                                torch.from_numpy(target), torch.from_numpy(valid))
+                        if self.masked_policy:
+                            packed = shard["legal"][ix] if "legal" in shard else None
+                            masks = legal_masks(tokens[ix, :69], labels[ix], packed)
+                            batch += (torch.from_numpy(masks),)
+                        yield batch
             if not self.repeat or not found:
                 return
             epoch += 1

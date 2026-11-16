@@ -2,6 +2,7 @@
 import argparse
 from contextlib import nullcontext
 from dataclasses import asdict
+from copy import deepcopy
 import json
 import math
 from pathlib import Path
@@ -19,7 +20,14 @@ from training.model import CONFIGS, Config, PolicyValue
 
 def objective(outputs, batch, weight):
     logits, value = outputs
-    _, labels, targets, valid = batch
+    _, labels, targets, valid = batch[:4]
+    if len(batch) == 5:
+        masks = batch[4]
+        if masks.shape != logits.shape or masks.dtype != torch.bool:
+            raise ValueError("Invalid legal mask shape or dtype")
+        if not masks.gather(1, labels[:, None]).all():
+            raise ValueError("Policy target missing from legal mask")
+        logits = logits.float().masked_fill(~masks, float("-inf"))
     policy = F.cross_entropy(logits.float(), labels)
     value_loss = (F.binary_cross_entropy_with_logits(value.float(), targets,
                     reduction="none") * valid).sum() / valid.sum().clamp_min(1)
@@ -31,7 +39,8 @@ def loader(args, split, repeat=False):
     if args.workers:
         kwargs["prefetch_factor"] = 2
     return DataLoader(Shards(args.data, split, args.batch_size, args.seed, repeat,
-                      getattr(args, "skip_batches", 0) if split == 0 else 0),
+                      getattr(args, "skip_batches", 0) if split == 0 else 0,
+                      getattr(args, "masked_policy", False) if split == 0 else False),
                       generator=torch.Generator().manual_seed(args.seed), **kwargs)
 
 def autocast(args):
@@ -39,6 +48,7 @@ def autocast(args):
 
 @torch.inference_mode()
 def evaluate(model, args):
+    was_training = model.training
     model.eval()
     totals = np.zeros(4)
     for i, batch in enumerate(loader(args, 1)):
@@ -51,13 +61,13 @@ def evaluate(model, args):
         n = len(batch[0])
         totals += [float(policy)*n, float(value)*n,
                    int((outputs[0].argmax(-1) == batch[1]).sum()), n]
-    model.train()
+    model.train(was_training)
     if not totals[3]:
         raise ValueError("No validation positions found")
     return dict(val_policy=totals[0]/totals[3], val_value=totals[1]/totals[3],
                 val_top1=totals[2]/totals[3], val_positions=int(totals[3]))
 
-def save_checkpoint(raw, optimizer, args, step, consumed, history):
+def save_checkpoint(raw, optimizer, args, step, consumed, history, ema=None):
     out = Path(args.output)
     path = out / f"step-{step:09d}.pt"
     state = dict(config=asdict(raw.config), model=raw.state_dict(),
@@ -65,6 +75,8 @@ def save_checkpoint(raw, optimizer, args, step, consumed, history):
                  args=vars(args), torch_rng=torch.get_rng_state(),
                  cuda_rng=torch.cuda.get_rng_state_all() if torch.cuda.is_available() else [],
                  python_rng=random.getstate())
+    if ema is not None:
+        state["ema"] = ema.state_dict()
     tmp = path.with_suffix(".tmp")
     torch.save(state, tmp)
     tmp.replace(path)
@@ -98,7 +110,10 @@ def main():
     p.add_argument("--warmup", type=int, default=1000)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--weight-decay", type=float, default=.1)
-    p.add_argument("--value-weight", type=float, default=.1)
+    p.add_argument("--value-weight", type=float, default=.5)
+    p.add_argument("--masked-policy", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--ema-decay", type=float, default=.9999)
+    p.add_argument("--fork-from", help="New run retaining model and optimizer, with a fresh schedule and absolute unseen-data skip")
     p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--eval-every", type=int, default=1000)
     p.add_argument("--eval-batches", type=int, default=50)
@@ -121,7 +136,9 @@ def main():
         p.error("--hf-run must be a simple unique run name")
     if args.hf_run and not shutil.which("hf"):
         p.error("hf CLI is required for uploads")
-    if args.skip_batches < 0 or (args.resume and args.init_from):
+    if not 0 <= args.ema_decay < 1:
+        p.error("--ema-decay must be in [0, 1)")
+    if args.skip_batches < 0 or sum(bool(x) for x in (args.resume, args.init_from, args.fork_from)) > 1:
         p.error("Invalid skip count or conflicting initialization modes")
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -133,11 +150,26 @@ def main():
     ckpt = torch.load(args.resume, map_location="cpu", weights_only=True) if args.resume else None
     if ckpt:
         for key in ("batch_size", "accum", "workers", "seed", "steps", "warmup", "lr",
-                    "weight_decay", "value_weight", "grad_clip", "hf_run"):
-            if ckpt["args"][key] != getattr(args, key):
+                    "weight_decay", "value_weight", "grad_clip", "hf_run", "masked_policy", "ema_decay"):
+            expected = ckpt["args"].get(key, False if key == "masked_policy" else .9999)
+            if expected != getattr(args, key):
                 p.error(f"Resume requires unchanged --{key.replace('_', '-')}")
     initial = torch.load(args.init_from, map_location="cpu", weights_only=True) if args.init_from else None
-    source = ckpt or initial
+    fork = torch.load(args.fork_from, map_location="cpu", weights_only=True) if args.fork_from else None
+    source = ckpt or initial or fork
+    if fork:
+        for key in ("batch_size", "workers", "seed"):
+            if fork["args"][key] != getattr(args, key):
+                p.error(f"Fork requires unchanged {key}")
+        workers = max(1, args.workers)
+        safe_skip = (math.ceil(fork["args"].get("skip_batches", 0)/workers)
+                     + math.ceil(fork["consumed"]/workers))*workers
+        if args.skip_batches % workers or args.skip_batches < safe_skip:
+            p.error(f"Fork requires worker-aligned --skip-batches >= {safe_skip}")
+        if Path(args.output).resolve() == Path(args.fork_from).resolve().parent:
+            p.error("Fork requires a new output directory")
+        if args.hf_run and args.hf_run == fork["args"].get("hf_run"):
+            p.error("Fork requires a new HF prefix")
     if ckpt and ckpt["args"].get("skip_batches", 0) != args.skip_batches:
         p.error("Resume requires unchanged --skip-batches")
     if initial and args.skip_batches:
@@ -147,14 +179,19 @@ def main():
         if initial["consumed"] != args.skip_batches:
             p.error("Skip count must match source consumed batches")
     raw = PolicyValue(Config(**source["config"]) if source else CONFIGS[args.config]).to(args.device)
-    if initial:
-        raw.load_state_dict(initial["model"])
+    if initial or fork:
+        raw.load_state_dict((initial or fork)["model"])
     optimizer = torch.optim.AdamW(raw.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    if fork:
+        optimizer.load_state_dict(fork["optimizer"])
     start, consumed = 0, 0
     if ckpt:
         raw.load_state_dict(ckpt["model"])
         optimizer.load_state_dict(ckpt["optimizer"])
         start, consumed = ckpt["step"], ckpt["consumed"]
+    ema = deepcopy(raw).eval().requires_grad_(False)
+    if source and "ema" in source:
+        ema.load_state_dict(source["ema"])
     model = torch.compile(raw) if args.compile else raw
     model.train()
     stream = iter(loader(args, 0, True))
@@ -174,8 +211,11 @@ def main():
     history = sorted(out.glob("step-*.pt"))
     print(json.dumps(dict(parameters=sum(x.numel() for x in raw.parameters()),
                           config=asdict(raw.config), start=start)), flush=True)
-    if args.init_from:
+    if args.init_from or args.fork_from:
         print(json.dumps(dict(step=0, **evaluate(model, args))), flush=True)
+    if args.fork_from:
+        path = save_checkpoint(raw, optimizer, args, 0, 0, history, ema)
+        print(f"checkpoint {path}", flush=True)
     begin = time.monotonic()
     for step in range(start+1, args.steps+1):
         if step <= args.warmup:
@@ -202,6 +242,9 @@ def main():
                         float((outputs[0].argmax(-1) == batch[1]).float().mean())]
         norm = torch.nn.utils.clip_grad_norm_(raw.parameters(), args.grad_clip, error_if_nonfinite=True)
         optimizer.step()
+        with torch.no_grad():
+            for averaged, current in zip(ema.parameters(), raw.parameters()):
+                averaged.lerp_(current, 1-args.ema_decay)
         if step % args.log_every == 0 or step == 1:
             record = dict(step=step, loss=metrics[0]/args.accum,
                           policy=metrics[1]/args.accum, value=metrics[2]/args.accum,
@@ -212,11 +255,12 @@ def main():
                 tracker.log(record, step=step)
         if step % args.eval_every == 0 or step == args.steps:
             record = dict(step=step, **evaluate(model, args))
+            record.update({"ema_" + k: v for k, v in evaluate(ema, args).items()})
             print(json.dumps(record), flush=True)
             if tracker:
                 tracker.log(record, step=step)
         if step % args.save_every == 0 or step == args.steps:
-            path = save_checkpoint(raw, optimizer, args, step, consumed, history)
+            path = save_checkpoint(raw, optimizer, args, step, consumed, history, ema)
             print(f"checkpoint {path}", flush=True)
     if tracker:
         tracker.finish()

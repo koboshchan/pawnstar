@@ -128,3 +128,50 @@ Resuming step 8 through step 16 reproduced every final model tensor exactly.
 The tiny 64-wide unit-test encoder reduced loss 7.6922 to 1.9254 in 25 steps.
 No Colab runtime, HF upload, full dataset download or long GPU run was started
 during implementation.
+
+## Compatible continuation upgrades
+
+Architecture is unchanged. The default value-loss weight is now 0.5. Policy loss
+masks illegal logits before cross-entropy. Shards with packed little-endian
+`legal` arrays use those masks; slim shards reconstruct canonical white-to-move
+boards in DataLoader workers with python-chess. Invalid masks and illegal
+targets fail loudly. Use `--no-masked-policy` only for explicit legacy runs.
+
+Validation remains **unmasked** so `val_policy` and `val_top1` compare directly
+with medium-v1/v2. Training loss after masking is not comparable to their old
+unmasked training loss. Every evaluation also reports `ema_val_*`.
+EMA (default decay 0.9999) keeps an independent fp32 parameter copy, saved as
+`ema` alongside raw `model`, optimizer and RNG state. Export and Python play
+prefer EMA when present; old checkpoints remain readable. EMA costs about one
+extra model's fp32 weights in GPU memory and disk.
+
+`--resume` is still strict for reproducibility. For a new objective/run use
+`--fork-from OLD.pt --skip-batches N --output NEW --hf-run NEW`: this retains
+raw model and AdamW moments but starts a fresh LR schedule and new counters.
+The skip is **absolute** in the original deterministic shard stream, must
+be aligned to the unchanged worker count, and must be past all source batches.
+After an interrupted source run, include the unsaved tail and a conservative
+prefetch margin. Source checkpoints and HF prefixes are never rewritten. A fork
+immediately saves/uploads step zero, then follows normal keep-two retention.
+
+### Desktop medium-v3 plan
+
+Source medium-v2 step 105000; same 512 microbatch, accumulation 2, four workers,
+seed 42 and bf16 CUDA. The stopped log ended at step 106720; skip 426672 batches
+globally (including the old initial 213150 and a conservative unsaved-tail
+margin), aligned to four workers. Stop at 182550 new optimizer steps, before
+any worker recycles first-epoch data. LR 0.000132, warmup 1000, cosine floor 0.1.
+New local output is `E:/pawnstar-runs/medium-v3` because C is nearly full; HF
+prefix is `pawnstar/runs/medium-v3`. v1/v2 and the C dataset stay untouched.
+
+The actual slim dataset has no stored masks. A four-worker, 512-row loader
+benchmark on unseen shards measured about 63054 positions/s with computed masks
+(51200 timed positions, startup excluded), versus about 1380 positions/s for
+the previous GPU training. Loader-only results are not end-to-end GPU speed.
+
+### Future experiments, not enabled
+
+SwiGLU/RMSNorm, spatial from-to heads, WDL value heads, history tokens and
+multi-PV soft targets need architecture or dataset changes and a separately
+planned run. Search and value rerankers are deliberately not part of Pawnstar's
+pure searchless engine.

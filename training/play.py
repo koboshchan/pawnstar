@@ -26,7 +26,7 @@ class Player:
         self.device = torch.device(device)
         ckpt = torch.load(checkpoint, map_location="cpu", weights_only=True)
         self.model = PolicyValue(Config(**ckpt["config"])).to(self.device)
-        self.model.load_state_dict(ckpt["model"])
+        self.model.load_state_dict(ckpt.get("ema", ckpt["model"]))
         self.model.eval()
 
     @torch.inference_mode()

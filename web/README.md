@@ -28,6 +28,10 @@ Deployed medium-v1 step 106575 on November 14, 2026. On 512 split=1 positions, F
 
 The default URL is versioned as models/pawnstar-medium-106575-7a3587112b5c-int8.onnx, SHA256 7a3587112b5ce8f3559f74140aa0627d85afe184c71cba24cd426647836a888b. The old small model remains available at models/pawnstar-small-1k-int8.onnx and its original URL for rollback. No model binaries are committed.
 
+## Live medium-v2 checkpoint
+
+Deployed medium-v2 step 105000 on November 15, 2026. On 2,048 split=1 positions, v2 FP32 policy loss is 1.59957755 versus 1.61108994 for medium-v1 step 106575 on the same positions. Per-channel INT8 is 55,130,763 bytes with policy loss 1.59956944 and 99.3652% unmasked top-1 agreement with FP32 (v1 INT8: 1.61144757, 99.1211%). The default URL is models/pawnstar-medium-105000-de2b04520496-int8.onnx, SHA256 de2b045204961e9b8fb629e9d002b94688fff833a80a63abc12e1f28af52fe21. The v1 model URL stays available for rollback. Export selects the checkpoint's ema weights when present, otherwise model weights, and records weights_source in report.json.
+
 ## Measured development checkpoint
 
 512 held-out positions from validation shard000000; not a full validation-set score.

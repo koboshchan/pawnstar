@@ -111,7 +111,7 @@ async function loadNetwork(){
   $('#backend').setAttribute('aria-live','polite');
   render();
   try{
-    const url=new URL('./models/pawnstar-medium-106575-7a3587112b5c-int8.onnx',location.href);
+    const url=new URL('./models/pawnstar-medium-105000-de2b04520496-int8.onnx',location.href);
     const result=await rpc({type:'load',url:url.href});
     console.info('Pawnstar model timing',result.timings);window.pawnstarLoadTimings=result.timings;
     ready=true;$('#backend').textContent=result.backend+' · quantized';

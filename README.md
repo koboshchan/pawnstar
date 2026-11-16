@@ -13,3 +13,5 @@ Then run `python preprocess/verify.py DATA_DIR`. See
 [preprocessing documentation](preprocess/README.md) for format and safety details.
 
 See [training documentation](training/README.md) for GPU/Colab commands, checkpoints and searchless play.
+
+For the Docker Lichess bot, see [setup and commands](lichess/README.md).

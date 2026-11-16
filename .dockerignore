@@ -1,0 +1,8 @@
+.git
+.env
+.env.*
+models
+**/__pycache__
+**/.venv
+web
+training

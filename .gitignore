@@ -12,3 +12,20 @@ sample*/
 
 /hf-parity-*/
 /hf-reconstructed-*.jsonl.zst
+/artifacts/
+*.onnx
+*.onnx.data
+*.pt
+/web/node_modules/
+/web/dist/
+!/web/index.html
+
+/web/public/ort/
+/web/smoke.mjs
+
+/web/live-smoke.mjs
+
+.env
+.env.*
+!.env.example
+/models/

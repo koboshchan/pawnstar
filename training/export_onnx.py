@@ -88,7 +88,8 @@ def main():
     a.output.mkdir(parents=True, exist_ok=True)
     ckpt = torch.load(a.checkpoint, map_location='cpu', weights_only=True)
     model = PolicyValue(Config(**ckpt['config'])).eval()
-    model.load_state_dict(ckpt['model'])
+    source = 'ema' if 'ema' in ckpt else 'model'
+    model.load_state_dict(ckpt[source])
     portable = Portable(model).eval()
     rows, labels = [], []
     for x, y, _, _ in Shards(a.data, 1, 32):
@@ -127,7 +128,7 @@ def main():
         results[kind] = dict(bytes=path.stat().st_size, agreement=float(np.mean(pred.argmax(1)==baseline)),
                             val_policy=float(loss), samples=len(x))
     default = 'int8'
-    report = dict(checkpoint=str(a.checkpoint), default=default, results=results)
+    report = dict(checkpoint=str(a.checkpoint), weights_source=source, default=default, results=results)
     (a.output/'report.json').write_text(json.dumps(report, indent=2))
     (a.output/'config.json').write_text(json.dumps({'model':f'pawnstar-{default}.onnx'}))
     # Mixed turns, castling, literal uncapturable EP, EP capture, underpromotion.

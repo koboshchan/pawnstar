@@ -1,0 +1,147 @@
+token: LICHESS_BOT_TOKEN
+url: https://lichess.org/
+engine:
+  dir: /app/pawnstar/engine
+  name: pawnstar_uci.py
+  debug: false
+  working_dir: ''
+  protocol: uci
+  ponder: false
+  polyglot:
+    enabled: false
+    book:
+      standard:
+      - engines/book1.bin
+      - engines/book2.bin
+    min_weight: 1
+    selection: weighted_random
+    max_depth: 20
+    normalization: none
+  draw_or_resign:
+    resign_enabled: false
+    resign_score: -1000
+    resign_for_egtb_minus_two: true
+    resign_moves: 3
+    offer_draw_enabled: true
+    offer_draw_score: 0
+    offer_draw_for_egtb_zero: true
+    offer_draw_moves: 10
+    offer_draw_pieces: 10
+  online_moves:
+    max_out_of_book_moves: 10
+    max_retries: 2
+    chessdb_book:
+      enabled: false
+      min_time: 20
+      max_time: 10800
+      move_quality: good
+      min_depth: 20
+    lichess_cloud_analysis:
+      enabled: false
+      min_time: 20
+      max_time: 10800
+      move_quality: best
+      max_score_difference: 50
+      min_depth: 20
+      min_knodes: 0
+    lichess_opening_explorer:
+      enabled: false
+      min_time: 20
+      max_time: 10800
+      source: masters
+      player_name: ''
+      sort: winrate
+      min_games: 10
+    online_egtb:
+      enabled: false
+      min_time: 20
+      max_time: 10800
+      max_pieces: 8
+      source: lichess
+      move_quality: best
+  lichess_bot_tbs:
+    syzygy:
+      enabled: false
+      paths:
+      - engines/syzygy
+      max_pieces: 7
+      move_quality: best
+    gaviota:
+      enabled: false
+      paths:
+      - engines/gaviota
+      max_pieces: 5
+      min_dtm_to_consider_as_wdl_1: 120
+      move_quality: best
+  homemade_options: null
+  uci_options: {}
+  silence_stderr: false
+  interpreter: /usr/local/bin/python
+abort_time: 30
+fake_think_time: false
+rate_limiting_delay: 0
+move_overhead: 2000
+max_takebacks_accepted: 0
+quit_after_all_games_finish: false
+correspondence:
+  move_time: 2
+  checkin_period: 5
+  disconnect_time: 3600
+  ponder: false
+challenge:
+  concurrency: 64
+  games_reserved_for_humans: 0
+  sort_by: best
+  preference: none
+  accept_bot: true
+  only_bot: false
+  max_increment: 180
+  min_increment: 0
+  max_base: 10800
+  min_base: 0
+  max_days: 14
+  min_days: 1
+  variants:
+  - standard
+  time_controls:
+  - blitz
+  - rapid
+  - bullet
+  - classical
+  modes:
+  - casual
+  - rated
+  bullet_requires_increment: false
+  max_simultaneous_games_per_user: 5
+greeting:
+  hello: Hi! I'm {me}. Good luck! Type !help for a list of commands I can respond
+    to.
+  goodbye: Good game!
+  hello_spectators: Hi! I'm {me}. Type !help for a list of commands I can respond
+    to.
+  goodbye_spectators: Thanks for watching!
+matchmaking:
+  allow_matchmaking: false
+  allow_during_games: false
+  challenge_variant: standard
+  challenge_timeout: 10
+  challenge_initial_time:
+  - 180
+  challenge_increment:
+  - 2
+  opponent_rating_difference: 300
+  rating_preference: none
+  challenge_mode: rated
+  challenge_filter: fine
+  include_challenge_block_list: false
+overrides:
+  five_plus_three:
+    challenge_initial_time:
+    - 300
+    challenge_increment:
+    - 3
+  ten_plus_zero:
+    challenge_initial_time:
+    - 600
+    challenge_increment:
+    - 0

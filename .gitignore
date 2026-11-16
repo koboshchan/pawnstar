@@ -24,3 +24,8 @@ sample*/
 /web/smoke.mjs
 
 /web/live-smoke.mjs
+
+.env
+.env.*
+!.env.example
+/models/

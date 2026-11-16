@@ -1,0 +1,42 @@
+#!/usr/local/bin/python
+"""Issue one explicit Lichess challenge; no automatic retries."""
+import os
+import re
+import sys
+import os
+import requests
+
+def main():
+    if len(sys.argv) == 3:
+        sys.argv.append("rated")
+    if len(sys.argv) != 4 or not re.fullmatch(r"[A-Za-z0-9_-]{2,30}", sys.argv[1]):
+        sys.exit("Usage: challenge USER MINUTES+INCREMENT [rated|casual]")
+    match = re.fullmatch(r"(\d+)\+(\d+)", sys.argv[2])
+    if not match or sys.argv[3] not in ("rated", "casual"):
+        sys.exit("Usage: challenge USER MINUTES+INCREMENT [rated|casual]")
+    minutes, increment = map(int, match.groups())
+    if not 0 <= minutes <= 180 or not 0 <= increment <= 60 or not (minutes or increment):
+        sys.exit("Invalid time control")
+    token = os.environ.get("LICHESS_BOT_TOKEN", "").strip()
+    if not token:
+        sys.exit("LICHESS_BOT_TOKEN is required")
+    try:
+        response = requests.post(
+            "https://lichess.org/api/challenge/" + sys.argv[1],
+            headers={"Authorization": "Bearer " + token},
+            data={"rated": str(sys.argv[3] == "rated").lower(), "clock.limit": minutes * 60,
+                  "clock.increment": increment, "variant": "standard"},
+            timeout=15)
+    except requests.RequestException:
+        sys.exit("Challenge failed due to a network error; no automatic retry.")
+    if response.status_code == 429:
+        sys.exit("Rate limited by Lichess. Wait before trying again.")
+    if not response.ok:
+        sys.exit(f"Challenge failed (HTTP {response.status_code}): {response.text[:500]}")
+    data = response.json()
+    challenge = data.get("challenge", data)
+    print("Challenge created:", challenge.get("url", challenge.get("id", "accepted by server")))
+    print("The opponent must accept; realtime challenges expire after 20 seconds.")
+
+if __name__ == "__main__":
+    main()
